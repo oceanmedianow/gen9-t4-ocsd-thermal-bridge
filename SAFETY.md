@@ -23,15 +23,17 @@ management-controller misbehavior or inadequate cooling.
 
 The publisher writes only its claimed record and the device-count header.
 It verifies writes, validates ownership on restart, and refuses to reclaim an
-unknown record. If GPU telemetry fails it publishes 85 C and requests the
-configured workloads stop. At 82 C it requests a stop. If iLO stops tracking
-the sensor, it requests a stop and fails. Its systemd watchdog is intended to
-restart a stalled publisher before iLO treats updates as stale.
+unknown record. If GPU telemetry fails it attempts to publish 85 C and
+requests the configured workloads stop. At 82 C it requests a stop. If iLO
+stops tracking the sensor, it requests a stop and fails. Its systemd watchdog
+is intended to restart a stalled publisher before iLO treats updates as stale.
 
 These are risk reductions, **not guarantees**. In the tested chassis, stale
 OCSD data caused iLO to drive fans to 100%, but other firmware may behave
 differently. Monitor the actual GPU and fan telemetry; do not rely only on the
 service's `active` state.
+The 16-bit update counter wraps after approximately 18 hours at one update
+per second; live iLO behavior at rollover remains unqualified.
 
 ## Stop And Rollback
 

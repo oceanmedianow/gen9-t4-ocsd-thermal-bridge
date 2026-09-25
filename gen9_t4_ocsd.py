@@ -231,11 +231,15 @@ def publish_and_guard(memory, active_header, counter, temperature,
                       telemetry_failed, warning_active):
     counter = (counter + 1) & 0xffff
     next_record = make_record(temperature, counter)
-    memory[RECORD_OFFSET:RECORD_OFFSET + RECORD_SIZE] = next_record
-    if bytes(memory[RECORD_OFFSET:RECORD_OFFSET + RECORD_SIZE]) != next_record:
-        raise RuntimeError("OCSD live update readback failed")
-    if bytes(memory[:64]) != active_header:
-        raise RuntimeError("OCSD header changed during publication")
+    try:
+        memory[RECORD_OFFSET:RECORD_OFFSET + RECORD_SIZE] = next_record
+        if bytes(memory[RECORD_OFFSET:RECORD_OFFSET + RECORD_SIZE]) != next_record:
+            raise RuntimeError("OCSD live update readback failed")
+        if bytes(memory[:64]) != active_header:
+            raise RuntimeError("OCSD header changed during publication")
+    except Exception:
+        stop_workloads()
+        raise
     warning_active = request_thermal_stop(
         temperature, telemetry_failed, warning_active)
     return counter, warning_active
@@ -307,6 +311,7 @@ def claim(memory, address):
                 or bytes(memory[RECORD_OFFSET:RECORD_OFFSET + RECORD_SIZE]) != new_record):
             raise RuntimeError("OCSD write readback failed")
     except Exception:
+        stop_workloads()
         if (bytes(memory[:64]) in (original, active_header)
                 and (not any(memory[RECORD_OFFSET:RECORD_OFFSET + RECORD_SIZE])
                      or owned_record(bytes(memory[RECORD_OFFSET:RECORD_OFFSET + RECORD_SIZE])))):

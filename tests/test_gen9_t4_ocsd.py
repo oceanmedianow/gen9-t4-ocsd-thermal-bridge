@@ -219,6 +219,27 @@ class OcsdProtocolTests(unittest.TestCase):
             ocsd.claim(memory, self.address)
         self.assertEqual(observed, [(3, 85, True)])
 
+    def test_claim_write_failure_still_requests_workload_stop(self):
+        class FailingMemory(bytearray):
+            def __setitem__(self, key, value):
+                if (isinstance(key, slice) and key.start == ocsd.RECORD_OFFSET
+                        and getattr(self, "fail_once", True)):
+                    self.fail_once = False
+                    raise RuntimeError("OCSD write failed")
+                return super().__setitem__(key, value)
+
+        memory = FailingMemory(self.snapshot)
+        with tempfile.TemporaryDirectory() as directory, \
+                mock.patch.object(ocsd, "STATE", Path(directory) / "ownership.json"), \
+                mock.patch.object(ocsd, "boot_id", return_value="boot-one"), \
+                mock.patch.object(ocsd, "gpu_temperature", return_value=45), \
+                mock.patch.object(ocsd, "stop_workloads", return_value=False) as stop:
+            with self.assertRaisesRegex(RuntimeError, "OCSD write failed"):
+                ocsd.claim(memory, self.address)
+            stop.assert_called_once()
+            self.assertFalse(ocsd.STATE.exists())
+        self.assertEqual(bytes(memory), self.snapshot)
+
     def test_update_publishes_fail_high_before_failed_status_check(self):
         memory = bytearray(self.snapshot)
         active = ocsd.header_with_count(memory[:64], 3)
@@ -238,6 +259,27 @@ class OcsdProtocolTests(unittest.TestCase):
         self.assertEqual((counter, warning), (2, True))
         self.assertEqual(observed, [(85, True)])
         stop.assert_called_once()
+
+    def test_update_counter_wraps_in_synthetic_record(self):
+        memory = bytearray(self.snapshot)
+        active = ocsd.header_with_count(memory[:64], 3)
+        memory[:64] = active
+        counter, warning = ocsd.publish_and_guard(
+            memory, active, 65535, 45, False, False)
+        record = bytes(memory[ocsd.RECORD_OFFSET:
+                              ocsd.RECORD_OFFSET + ocsd.RECORD_SIZE])
+        self.assertEqual((counter, warning), (0, False))
+        self.assertEqual(struct.unpack_from("<H", record, 88)[0], 0)
+        self.assertTrue(ocsd.owned_record(record))
+
+    def test_update_header_mismatch_requests_workload_stop(self):
+        memory = bytearray(self.snapshot)
+        active = ocsd.header_with_count(memory[:64], 3)
+        memory[:64] = active
+        with mock.patch.object(ocsd, "stop_workloads", return_value=False) as stop:
+            with self.assertRaisesRegex(RuntimeError, "header changed"):
+                ocsd.publish_and_guard(memory, self.snapshot[:64], 1, 45, False, False)
+            stop.assert_called_once()
 
     def test_stop_timeout_is_nonfatal(self):
         with mock.patch.object(ocsd.subprocess, "run",

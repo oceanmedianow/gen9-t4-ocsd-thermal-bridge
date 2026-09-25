@@ -106,6 +106,11 @@ the publisher will not signal ready and systemd will eventually fail the
 start. GPU work must remain stopped until an operator verifies sensor and fan
 behavior. A boot-capable release needs separate hardware acceptance testing.
 
+The update counter is 16-bit and wraps to zero after 65,536 publications
+(roughly 18 hours at one update per second). The code's wrap behavior has an
+offline test, but iLO's response at rollover has **not** been measured on the
+live chassis. Continuous operation beyond that point is not qualified.
+
 For example, after independent GPU-idle and console checks, an operator could
 invoke the helper manually with the **actual** service names:
 

@@ -26,6 +26,8 @@ The publisher's counter advances while running, including during shutdown
 cool-down. A stopped publisher or stale count can change iLO's fan response;
 on the tested chassis stale data drove the fans to 100%. That behavior is a
 single-platform observation, not a recovery guarantee for other firmware.
+The counter is 16-bit and wraps after 65,536 updates. The public code handles
+that arithmetic, but iLO's behavior at rollover has not been live-tested.
 
 The synthetic unit-test fixture constructs only the fields needed to test
 these checks. It is not a dump of host memory and cannot prove another
