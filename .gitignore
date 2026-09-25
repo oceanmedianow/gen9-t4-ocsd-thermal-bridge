@@ -1,0 +1,10 @@
+__pycache__/
+.pytest_cache/
+*.py[cod]
+*.bin
+*.raw
+*.dump
+*prewrite*
+*snapshot*
+ownership.json
+*.log

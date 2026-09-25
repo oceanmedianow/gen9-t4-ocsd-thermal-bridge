@@ -1,0 +1,3 @@
+# Install as /etc/gen9-t4-ocsd.conf, owned by root and mode 0600.
+# List every systemd service that can keep this GPU busy. Replace these names.
+OCSD_WORKLOAD_UNITS="example-inference.service example-transcription.service"

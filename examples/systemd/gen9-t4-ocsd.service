@@ -1,0 +1,46 @@
+[Unit]
+Description=Gen9 T4 OCSD thermal publisher
+After=nvidia-persistenced.service
+Wants=nvidia-persistenced.service
+StartLimitIntervalSec=120
+StartLimitBurst=5
+
+[Service]
+Type=notify
+NotifyAccess=main
+EnvironmentFile=/etc/gen9-t4-ocsd.conf
+ExecStart=/usr/bin/python3 /opt/gen9-t4-ocsd/gen9_t4_ocsd.py
+Restart=on-failure
+RestartSec=3
+WatchdogSec=20
+TimeoutStartSec=300
+TimeoutStopSec=150
+StateDirectory=gen9-t4-ocsd
+StateDirectoryMode=0700
+RuntimeDirectory=gen9-t4-ocsd
+RuntimeDirectoryMode=0700
+User=root
+Group=root
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+LockPersonality=true
+RestrictAddressFamilies=AF_UNIX
+DevicePolicy=closed
+DeviceAllow=/dev/mem rw
+DeviceAllow=/dev/ipmi0 rw
+DeviceAllow=/dev/nvidia0 rw
+DeviceAllow=/dev/nvidiactl rw
+DeviceAllow=/dev/nvidia-uvm rw
+ReadWritePaths=/run/gen9-t4-ocsd /var/lib/gen9-t4-ocsd
+MemoryMax=128M
+TasksMax=32
+
+[Install]
+WantedBy=multi-user.target
