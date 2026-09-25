@@ -36,8 +36,11 @@ not certify other firmware revisions, chassis, GPUs, OCSD layouts, or cooling
 hardware. The installed host version remains separate from this public copy.
 This public adaptation uses generic names, configurable workload-service
 targets, a manual registration helper, an explicit iLO-reset opt-in flag,
-cool-GPU reset guard, and repeated hot-workload stop requests. Those changes
-have offline tests but have **not** been requalified on the live chassis.
+cool-GPU reset guard, and repeated hot-workload stop requests. The public copy
+passed an idle manual start, sensor-readiness, and controlled stop/restore test
+on the same chassis on 2026-09-25. GPU load, failure injection, and counter
+rollover have **not** been live-qualified for this public copy; see
+[QUALIFICATION.md](QUALIFICATION.md).
 The example service is manual-start only; this release does not provide
 unattended boot recovery.
 
