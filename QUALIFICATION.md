@@ -24,6 +24,8 @@ address, serial number, workload data, or credentials are included.
 This was an **idle lifecycle test**, not a sustained GPU-load or fault-injection
 test. The public service was stopped afterward. Natural 16-bit rollover, boot
 registration, fail-high fan response, and long-run stability of this exact
-public build remain unqualified. A natural rollover observation of the
-separately installed publisher is pending and will test iLO's handling of the
-same OCSD counter format, not the public service's long-run operation.
+public build remain unqualified. A read-only natural rollover observation of
+the separately installed publisher is in progress, with the wrap expected
+around 2026-09-26 09:56 America/Chicago. Its result is pending. This tests
+iLO's handling of the same OCSD counter format, not the public service's
+long-run operation.
