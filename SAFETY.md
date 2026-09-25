@@ -43,8 +43,9 @@ the OCSD record in place rather than blindly writing over an unknown state.
 That failure requires operator attention and a documented maintenance
 recovery; do not issue ad hoc `/dev/mem` writes.
 
-The example boot helper only checks registration. An operator may separately
-invoke it with `--allow-ilo-reset` after verifying all GPU activity is idle.
+The registration helper is manual. Without `--allow-ilo-reset` it only checks
+registration. An operator may invoke it with that flag after independently
+verifying all GPU activity is idle.
 It then checks the configured workload units are loaded and inactive, takes
 three cool GPU samples, and checks that the publisher record exists and the
 sensor is absent before resetting
@@ -52,7 +53,10 @@ sensor is absent before resetting
 interrupts management access; never perform it without an independent
 recovery path.
 
-The example units are not a drop-in installer. Keep the publisher disabled
-until you have completed manual start, load, telemetry-loss, restart, stop,
-and restoration checks on your own hardware. Do not attempt a manual iLO
-registration reset until a separate maintenance-window test is approved.
+The example publisher unit has no boot-enable section. It is not an unattended
+thermal safeguard: iLO may require an operator-approved reset to discover the
+sensor, and systemd startup times out without registration. Keep GPU workloads
+stopped until sensor and fan response are verified. Complete manual start,
+load, telemetry-loss, restart, stop, and restoration checks on your own
+hardware before considering any boot automation. Do not attempt a manual iLO
+registration reset without a maintenance window and independent recovery path.

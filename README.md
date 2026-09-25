@@ -35,9 +35,11 @@ Those results establish a working path on the tested machine only. They do
 not certify other firmware revisions, chassis, GPUs, OCSD layouts, or cooling
 hardware. The installed host version remains separate from this public copy.
 This public adaptation uses generic names, configurable workload-service
-targets, a verification-only boot helper, an explicit manual iLO-reset flag,
+targets, a manual registration helper, an explicit iLO-reset opt-in flag,
 cool-GPU reset guard, and repeated hot-workload stop requests. Those changes
 have offline tests but have **not** been requalified on the live chassis.
+The example service is manual-start only; this release does not provide
+unattended boot recovery.
 
 ## Scope And Requirements
 
@@ -49,9 +51,9 @@ have offline tests but have **not** been requalified on the live chassis.
 - NVIDIA `nvidia-smi`, `ipmitool`, and root access to `/dev/mem` and IPMI.
 - Explicit systemd workload units in `/etc/gen9-t4-ocsd.conf`; the daemon
   refuses to start if those units are missing or not loaded.
-- `ilorest` only for an operator-approved iLO registration reset. The example
-  boot unit checks registration but never resets iLO. A manual invocation
-  with `--allow-ilo-reset` requires configured workloads to be inactive.
+- `ilorest` only for an operator-approved iLO registration reset. The manual
+  helper does not reset iLO unless invoked with `--allow-ilo-reset`, and it
+  requires configured workloads to be inactive.
 
 The code intentionally fails on unrecognized layouts or occupied records.
 Do **not** bypass these checks to make another machine appear compatible.
@@ -60,7 +62,7 @@ Do **not** bypass these checks to make another machine appear compatible.
 
 - `gen9_t4_ocsd.py`: temperature publisher, ownership checks, watchdog,
   thermal-stop request, and bounded cool-down restoration.
-- `gen9_t4_ocsd_register.py`: optional post-boot iLO registration check.
+- `gen9_t4_ocsd_register.py`: manual iLO registration check and guarded reset.
 - `examples/systemd/`: **examples**, not installed or enabled by this repo.
 - `examples/gen9-t4-ocsd.conf.example`: required workload-unit configuration.
 - `tests/`: synthetic OCSD fixture and offline safety tests. No host memory
@@ -82,18 +84,27 @@ No GPU or iLO is needed for those tests.
    LLM machine these might be the local inference or model-server units;
    the example names are placeholders and must be replaced.
 4. Stage the publisher under the path shown in the example unit only after
-   adapting and reviewing every path and privilege. Do not enable it at boot
-   until manual telemetry, fan response, failure, and rollback checks pass.
-5. Watch `nvidia-smi`, `ipmitool sdr get '21-PCI 1'`, all fan duties, and iLO
-   logs together under bounded load. Verify cool-down and restoration before
-   considering the boot-registration helper.
+   adapting and reviewing every path and privilege. The unit has no `[Install]`
+   section and must be started manually. It is not a boot-enabled thermal
+   safeguard. Because this chassis may require an iLO reset to discover the
+   published sensor, a manual start can remain `activating` until registration
+   succeeds or the five-minute startup timeout expires. Use a separate console
+   during this test; `systemctl start --no-block gen9-t4-ocsd.service` avoids
+   waiting at the shell for the readiness notification.
+5. Check registration manually with `gen9_t4_ocsd_register.py` while the
+   publisher is running. If the sensor is absent, independently confirm all
+   GPU work is idle and cool before deciding whether to invoke the helper
+   with `--allow-ilo-reset` and the actual workload-unit environment. This
+   resets iLO, not the host, but interrupts iLO management sessions. The
+   helper cannot detect GPU processes outside configured systemd units.
+6. Watch `nvidia-smi`, `ipmitool sdr get '21-PCI 1'`, all fan duties, and iLO
+   logs together under bounded load. Verify cool-down and restoration.
 
-The example boot helper is **verification-only**. If it reports the sensor
-absent, the operator must first confirm all GPU work is idle and then decide
-whether to run the helper manually with `--allow-ilo-reset` and the configured
-workload-unit environment. That action resets iLO, not the host, but it does
-interrupt iLO management sessions. The helper cannot detect GPU processes
-outside the configured systemd units; check those separately.
+**Do not enable these examples at boot.** There is no tested unattended
+registration and recovery sequence. If iLO does not discover the sensor,
+the publisher will not signal ready and systemd will eventually fail the
+start. GPU work must remain stopped until an operator verifies sensor and fan
+behavior. A boot-capable release needs separate hardware acceptance testing.
 
 For example, after independent GPU-idle and console checks, an operator could
 invoke the helper manually with the **actual** service names:
@@ -104,7 +115,7 @@ sudo env OCSD_WORKLOAD_UNITS="your-llm.service" \
 ```
 
 The command fails if the named unit is not loaded, is active, or the GPU is
-still warm. It is not part of the example boot unit.
+still warm. It is never run automatically by the example service.
 
 ## Limits
 

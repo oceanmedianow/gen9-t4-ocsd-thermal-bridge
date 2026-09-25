@@ -176,9 +176,18 @@ def notify(message):
 
 
 def stop_workloads():
-    subprocess.run(["/usr/bin/systemctl", "stop", "--no-block"] + list(WORKLOAD_UNITS),
-                   stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=5,
-                   check=False)
+    try:
+        result = subprocess.run(
+            ["/usr/bin/systemctl", "stop", "--no-block"] + list(WORKLOAD_UNITS),
+            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=5,
+            check=False)
+    except Exception as error:
+        LOG.error("GPU workload stop request failed: %s", type(error).__name__)
+        return False
+    if result.returncode:
+        LOG.error("GPU workload stop request returned status %d", result.returncode)
+        return False
+    return True
 
 
 def workloads_active():
@@ -206,11 +215,30 @@ def validate_workload_units():
 def request_thermal_stop(temperature, telemetry_failed, warning_active):
     if not telemetry_failed and temperature < STOP_WORKLOAD_C:
         return False
-    if not warning_active or workloads_active():
+    try:
+        retry = workloads_active() if warning_active else True
+    except Exception as error:
+        LOG.error("GPU workload status check failed: %s", type(error).__name__)
+        retry = True
+    if retry:
         stop_workloads()
     if not warning_active:
         LOG.warning("GPU workload stop requested at %d C", temperature)
     return True
+
+
+def publish_and_guard(memory, active_header, counter, temperature,
+                      telemetry_failed, warning_active):
+    counter = (counter + 1) & 0xffff
+    next_record = make_record(temperature, counter)
+    memory[RECORD_OFFSET:RECORD_OFFSET + RECORD_SIZE] = next_record
+    if bytes(memory[RECORD_OFFSET:RECORD_OFFSET + RECORD_SIZE]) != next_record:
+        raise RuntimeError("OCSD live update readback failed")
+    if bytes(memory[:64]) != active_header:
+        raise RuntimeError("OCSD header changed during publication")
+    warning_active = request_thermal_stop(
+        temperature, telemetry_failed, warning_active)
+    return counter, warning_active
 
 
 def boot_id():
@@ -263,12 +291,13 @@ def claim(memory, address):
     else:
         raise ValueError("OCSD slot 2 is not empty or safely recoverable")
     counter = (counter + 1) & 0xffff
+    telemetry_failed = False
     try:
         temperature = gpu_temperature()
     except Exception as error:
         LOG.error("initial NVIDIA telemetry failed: %s", type(error).__name__)
         temperature = CAUTION_C
-        stop_workloads()
+        telemetry_failed = True
     active_header = header_with_count(original, 3)
     try:
         new_record = make_record(temperature, counter)
@@ -285,6 +314,7 @@ def claim(memory, address):
             memory[RECORD_OFFSET:RECORD_OFFSET + RECORD_SIZE] = bytes(RECORD_SIZE)
             STATE.unlink()
         raise
+    request_thermal_stop(temperature, telemetry_failed, False)
     return original, active_header, counter
 
 
@@ -364,15 +394,9 @@ def run():
                 temperature = CAUTION_C
                 telemetry_failed = True
                 LOG.error("NVIDIA telemetry failed; publishing 85 C: %s", type(error).__name__)
-            warning_active = request_thermal_stop(
-                temperature, telemetry_failed, warning_active)
-            counter = (counter + 1) & 0xffff
-            next_record = make_record(temperature, counter)
-            memory[RECORD_OFFSET:RECORD_OFFSET + RECORD_SIZE] = next_record
-            if bytes(memory[RECORD_OFFSET:RECORD_OFFSET + RECORD_SIZE]) != next_record:
-                raise RuntimeError("OCSD live update readback failed")
-            if bytes(memory[:64]) != active_header:
-                raise RuntimeError("OCSD header changed during publication")
+            counter, warning_active = publish_and_guard(
+                memory, active_header, counter, temperature,
+                telemetry_failed, warning_active)
             now = time.monotonic()
             if now - last_ilo_check >= 5:
                 last_ilo_check = now

@@ -60,7 +60,7 @@ def main(allow_ilo_reset=False):
             break
         time.sleep(2)
     else:
-        raise RuntimeError("T4 publisher did not claim OCSD slot at boot")
+        raise RuntimeError("T4 publisher did not claim OCSD slot")
     if sensor_matches_gpu():
         LOG.info("iLO already tracks T4; management reset unnecessary")
         return
@@ -73,7 +73,7 @@ def main(allow_ilo_reset=False):
         if ocsd.gpu_temperature() > ocsd.RESTORE_COOL_C:
             raise RuntimeError("GPU is not cool; iLO reset deferred")
         time.sleep(1)
-    LOG.warning("T4 sensor absent after boot; resetting iLO management processor")
+    LOG.warning("T4 sensor absent; resetting iLO management processor")
     subprocess.run(["/usr/sbin/ilorest", "iloreset"], timeout=20, check=True,
                    stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     deadline = time.monotonic() + 105
@@ -94,5 +94,5 @@ if __name__ == "__main__":
     try:
         main(args.allow_ilo_reset)
     except Exception:
-        LOG.exception("boot T4 sensor registration failed")
+        LOG.exception("T4 sensor registration failed")
         raise SystemExit(1)

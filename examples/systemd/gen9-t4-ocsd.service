@@ -41,6 +41,3 @@ DeviceAllow=/dev/nvidia-uvm rw
 ReadWritePaths=/run/gen9-t4-ocsd /var/lib/gen9-t4-ocsd
 MemoryMax=128M
 TasksMax=32
-
-[Install]
-WantedBy=multi-user.target

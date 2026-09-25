@@ -1,6 +1,7 @@
 import sys
 from pathlib import Path
 import struct
+import subprocess
 import tempfile
 import unittest
 from unittest import mock
@@ -45,6 +46,12 @@ class OcsdProtocolTests(unittest.TestCase):
         self.assertEqual(self.snapshot[56], 2)
         self.assertFalse(any(self.snapshot[ocsd.RECORD_OFFSET:
                                            ocsd.RECORD_OFFSET + ocsd.RECORD_SIZE]))
+
+    def test_example_service_is_manual_only(self):
+        examples = Path(__file__).resolve().parent.parent / "examples" / "systemd"
+        publisher = (examples / "gen9-t4-ocsd.service").read_text("ascii")
+        self.assertNotIn("[Install]", publisher)
+        self.assertFalse((examples / "gen9-t4-ocsd-register.service").exists())
 
     def test_header_rejects_corruption(self):
         header = self.snapshot[:64]
@@ -193,6 +200,49 @@ class OcsdProtocolTests(unittest.TestCase):
         with mock.patch.object(ocsd, "stop_workloads") as stop:
             self.assertTrue(ocsd.request_thermal_stop(85, True, False))
             stop.assert_called_once()
+
+    def test_claim_publishes_fail_high_before_stop_request(self):
+        memory = bytearray(self.snapshot)
+        observed = []
+
+        def inspect_stop():
+            record = bytes(memory[ocsd.RECORD_OFFSET:
+                                  ocsd.RECORD_OFFSET + ocsd.RECORD_SIZE])
+            observed.append((memory[56], record[84], ocsd.owned_record(record)))
+            return False
+
+        with tempfile.TemporaryDirectory() as directory, \
+                mock.patch.object(ocsd, "STATE", Path(directory) / "ownership.json"), \
+                mock.patch.object(ocsd, "boot_id", return_value="boot-one"), \
+                mock.patch.object(ocsd, "gpu_temperature", side_effect=RuntimeError("NVML")), \
+                mock.patch.object(ocsd, "stop_workloads", side_effect=inspect_stop):
+            ocsd.claim(memory, self.address)
+        self.assertEqual(observed, [(3, 85, True)])
+
+    def test_update_publishes_fail_high_before_failed_status_check(self):
+        memory = bytearray(self.snapshot)
+        active = ocsd.header_with_count(memory[:64], 3)
+        memory[:64] = active
+        observed = []
+
+        def inspect_status():
+            record = bytes(memory[ocsd.RECORD_OFFSET:
+                                  ocsd.RECORD_OFFSET + ocsd.RECORD_SIZE])
+            observed.append((record[84], ocsd.owned_record(record)))
+            raise subprocess.TimeoutExpired("systemctl", 5)
+
+        with mock.patch.object(ocsd, "workloads_active", side_effect=inspect_status), \
+                mock.patch.object(ocsd, "stop_workloads", return_value=False) as stop:
+            counter, warning = ocsd.publish_and_guard(
+                memory, active, 1, 85, True, True)
+        self.assertEqual((counter, warning), (2, True))
+        self.assertEqual(observed, [(85, True)])
+        stop.assert_called_once()
+
+    def test_stop_timeout_is_nonfatal(self):
+        with mock.patch.object(ocsd.subprocess, "run",
+                               side_effect=subprocess.TimeoutExpired("systemctl", 5)):
+            self.assertFalse(ocsd.stop_workloads())
 
     def test_ownership_recovers_after_crash_and_new_boot(self):
         with tempfile.TemporaryDirectory() as directory:
