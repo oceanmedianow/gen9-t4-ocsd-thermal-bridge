@@ -20,6 +20,32 @@ An incorrect write could damage the running system's management state. Read
 [SAFETY.md](SAFETY.md) before trying it. No install script or binary firmware
 patch is supplied.
 
+## Prior Work And Acknowledgments
+
+This project builds on earlier community reverse-engineering of HPE iLO 4 and
+OCSD. In particular:
+
+- [/u/phoenixdev's original "Silence of the Fans" work](https://www.reddit.com/r/homelab/comments/dc7dbc/silence_of_the_fans_preliminary_success_with/)
+  helped establish practical control and understanding of iLO 4 fan behavior.
+- [Kendall Goto's `ilo4_unlock`](https://github.com/kendallgoto/ilo4_unlock)
+  exposed and documented previously inaccessible iLO 4 utilities, including
+  fan and OCSD-related functionality.
+- [`conroy-cheers/ocsd`](https://github.com/conroy-cheers/ocsd) demonstrated
+  host-side reporting of option-card temperature data into the OCSD buffer so
+  iLO can use that data for monitoring and fan control.
+
+Those projects established important parts of the iLO 4 / OCSD path that made
+this implementation possible. This repository's contribution is narrower: it
+focuses on a Tesla T4 in a DL380 Gen9 running stock iLO 4 v2.82, publishing the
+GPU temperature through the host OCSD record so the stock HPE controller can
+respond without patched iLO firmware or direct PWM/fan overrides. It also adds
+the model-specific guards, fail-high behavior, workload-stop handling, and
+qualification work documented here.
+
+The public copy is still being qualified. The core bridge and manual reference
+path are published, but there is **no automated installer yet**; extended
+lifecycle and natural counter-rollover testing are still in progress.
+
 ## What Was Observed
 
 On one DL380 Gen9 with stock iLO 4 v2.82, BIOS `OptimalCooling`, the chassis
