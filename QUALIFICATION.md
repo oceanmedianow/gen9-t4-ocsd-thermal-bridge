@@ -24,8 +24,25 @@ address, serial number, workload data, or credentials are included.
 This was an **idle lifecycle test**, not a sustained GPU-load or fault-injection
 test. The public service was stopped afterward. Natural 16-bit rollover, boot
 registration, fail-high fan response, and long-run stability of this exact
-public build remain unqualified. A read-only natural rollover observation of
-the separately installed publisher is in progress, with the wrap expected
-around 2026-09-26 09:56 America/Chicago. Its result is pending. This tests
-iLO's handling of the same OCSD counter format, not the public service's
-long-run operation.
+public build remain unqualified. The separately installed publisher's natural
+rollover was subsequently observed on 2026-09-26, as recorded below.
+
+## 2026-09-26: Installed Publisher Natural Rollover
+
+- This was a read-only observation of the separately installed publisher on
+  the same DL380 Gen9, not a live rollover run of the public reference code.
+- The publisher stayed active with the same PID and zero systemd restarts.
+  OCSD record 2 and its header/native records validated throughout the test.
+- A pre-wrap sample had counter 65300, T4 41 C, iLO `21-PCI 1` at 56 C,
+  and all six fans at approximately 12-16% duty.
+- The monitor directly observed counter 65535 followed by 0. At 0, the
+  record remained valid, the T4 was 41 C, iLO still read 56 C, and all six
+  fans were approximately 9-12%. A later read reached counter 18 and remained
+  valid.
+- Observation used `os.O_RDONLY` and `mmap.ACCESS_READ` for `/dev/mem`.
+  No GPU load, iLO reset, service action, or Asterisk action was performed.
+
+**Result: pass for one natural 16-bit rollover of the installed publisher and
+stock iLO 4 v2.82 on this chassis.** It supports the OCSD/iLO control path,
+but does not establish sustained-load rollover behavior, public-copy long-run
+stability, unattended boot recovery, or compatibility with other systems.

@@ -44,7 +44,7 @@ qualification work documented here.
 
 The public copy is still being qualified. The core bridge and manual reference
 path are published, but there is **no automated installer yet**; extended
-lifecycle and natural counter-rollover testing are still in progress.
+lifecycle testing of this exact public copy is still in progress.
 
 ## What Was Observed
 
@@ -66,7 +66,13 @@ cool-GPU reset guard, and repeated hot-workload stop requests. The public copy
 passed an idle manual start, sensor-readiness, and controlled stop/restore test
 on the same chassis on 2026-09-25. GPU load, failure injection, and counter
 rollover have **not** been live-qualified for this public copy; see
-[QUALIFICATION.md](QUALIFICATION.md).
+[QUALIFICATION.md](QUALIFICATION.md). On 2026-09-26, the separately installed
+publisher survived a natural 16-bit counter wrap on that chassis: the valid
+record advanced from 65535 to 0 without a process restart, while iLO kept
+tracking the T4 and the fans remained at normal idle speeds. This is evidence
+for stock iLO's behavior with the same record format, **not** a long-run or
+unattended acceptance of the public copy.
+
 The example service is manual-start only; this release does not provide
 unattended boot recovery.
 
@@ -137,8 +143,9 @@ behavior. A boot-capable release needs separate hardware acceptance testing.
 
 The update counter is 16-bit and wraps to zero after 65,536 publications
 (roughly 18 hours at one update per second). The code's wrap behavior has an
-offline test, but iLO's response at rollover has **not** been measured on the
-live chassis. Continuous operation beyond that point is not qualified.
+offline test. The separately installed publisher passed one live natural
+rollover with iLO still tracking the T4; the public copy has not been run
+through a live rollover or qualified for unattended operation.
 
 For example, after independent GPU-idle and console checks, an operator could
 invoke the helper manually with the **actual** service names:
