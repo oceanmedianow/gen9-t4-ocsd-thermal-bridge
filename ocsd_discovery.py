@@ -7,9 +7,9 @@ import re
 import subprocess
 import sys
 
-DISPLAY_CLASS = re.compile(r"^([0-9a-fA-F]{4,8}:[0-9a-fA-F]{2}:[0-9a-fA-F]{2}\\.[0-7])\\s+(.+)$")
+DISPLAY_CLASS = re.compile(r"^([0-9a-fA-F]{4,8}:[0-9a-fA-F]{2}:[0-9a-fA-F]{2}\\.[0-7])\s+(.+)$")
 DISPLAY_WORDS = ("vga compatible controller", "3d controller", "display controller")
-DMI_HEADER = re.compile(r"^Handle 0x[0-9a-fA-F]+, DMI type (\\d+),")
+DMI_HEADER = re.compile(r"^Handle 0x[0-9a-fA-F]+, DMI type (\d+),")
 
 
 def type229_summary(output):
@@ -51,7 +51,7 @@ def read_product_name(path="/sys/class/dmi/id/product_name"):
     except (OSError, UnicodeError):
         return "unknown"
     # Strict allowlist so untrusted DMI strings do not leak arbitrary data.
-    if re.fullmatch(r"ProLiant (?:DL|ML|BL|SL)\\d{2,4}(?:p)? Gen(?:8|9|10)(?: Plus)?", name):
+    if re.fullmatch(r"ProLiant (?:DL|ML|BL|SL)\d{2,4}(?:p)? Gen(?:8|9|10)(?: Plus)?", name):
         return name
     return "unrecognized (redacted)"
 
