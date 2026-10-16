@@ -2,7 +2,9 @@
 """Conservative, read-only OCSD discovery report. No /dev/mem access."""
 import argparse
 import json
+import os
 import re
+import stat
 import subprocess
 import sys
 
@@ -43,11 +45,23 @@ def type229_summary(table):
 
 def read_dmi_table(path=DMI_TABLE):
     """Read the kernel-exported SMBIOS table only; never fall back to memory."""
+    descriptor = None
     try:
-        with open(path, "rb") as stream:
+        if not stat.S_ISREG(os.lstat(path).st_mode):
+            return None
+        flags = os.O_RDONLY | getattr(os, "O_CLOEXEC", 0) | getattr(os, "O_NOFOLLOW", 0)
+        descriptor = os.open(path, flags)
+        if not stat.S_ISREG(os.fstat(descriptor).st_mode):
+            return None
+        stream = os.fdopen(descriptor, "rb")
+        descriptor = None
+        with stream:
             table = stream.read(MAX_DMI_TABLE_SIZE + 1)
     except OSError:
         return None
+    finally:
+        if descriptor is not None:
+            os.close(descriptor)
     if len(table) > MAX_DMI_TABLE_SIZE:
         return None
     return table

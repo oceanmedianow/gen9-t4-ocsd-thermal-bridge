@@ -1,5 +1,7 @@
+import stat
 import unittest
-from ocsd_discovery import inspect, pci_displays, type229_summary
+from unittest import mock
+from ocsd_discovery import inspect, pci_displays, read_dmi_table, type229_summary
 
 
 def dmi_structure(structure_type, handle, strings=()):
@@ -21,6 +23,13 @@ class DiscoveryTests(unittest.TestCase):
         report = inspect(bytes((229, 3, 0, 0)), "", "unknown")
         self.assertEqual(report["smbios"], "unavailable")
         self.assertFalse(report["layout_validated"])
+
+    def test_character_device_is_rejected_before_open(self):
+        device = mock.Mock(st_mode=stat.S_IFCHR | 0o600)
+        with mock.patch("ocsd_discovery.os.lstat", return_value=device), \
+                mock.patch("ocsd_discovery.os.open") as open_file:
+            self.assertIsNone(read_dmi_table("/dev/mem"))
+        open_file.assert_not_called()
 
     def test_display_bdf_only(self):
         data = "0000:05:00.0 3D controller [0302]: NVIDIA T4 [10de:1eb8]\n0000:00:1f.0 ISA bridge [0601]: chipset"
