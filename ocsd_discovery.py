@@ -2,33 +2,55 @@
 """Conservative, read-only OCSD discovery report. No /dev/mem access."""
 import argparse
 import json
-import os
 import re
 import subprocess
 import sys
 
 DISPLAY_CLASS = re.compile(r"^([0-9a-fA-F]{4,8}:[0-9a-fA-F]{2}:[0-9a-fA-F]{2}\.[0-7])\s+(.+)$")
 DISPLAY_WORDS = ("vga compatible controller", "3d controller", "display controller")
-DMI_HEADER = re.compile(r"^Handle 0x[0-9a-fA-F]+, DMI type (\d+),")
+DMI_TABLE = "/sys/firmware/dmi/tables/DMI"
+MAX_DMI_TABLE_SIZE = 16 * 1024 * 1024
 
 
-def type229_summary(output):
-    """Count type-229 structures; never publish their addresses or bytes."""
-    blocks = []
-    current = None
-    for line in output.splitlines():
-        match = DMI_HEADER.match(line)
-        if match:
-            if current is not None:
-                blocks.append(current)
-            current = {"type": int(match.group(1)), "ocs_marker": False}
-        elif current is not None and "$OCS" in line:
-            current["ocs_marker"] = True
-    if current is not None:
-        blocks.append(current)
-    found = [block for block in blocks if block["type"] == 229]
-    return {"type_229_structures": len(found),
-            "type_229_with_ocs_marker": sum(1 for block in found if block["ocs_marker"])}
+def type229_summary(table):
+    """Count type-229 structures in a raw sysfs DMI table.
+
+    Only aggregate counts leave this function. Physical addresses, formatted
+    bytes, strings and handles are deliberately discarded.
+    """
+    count = 0
+    marker_count = 0
+    offset = 0
+    while offset + 4 <= len(table):
+        structure_type = table[offset]
+        formatted_length = table[offset + 1]
+        if formatted_length < 4 or offset + formatted_length > len(table):
+            raise ValueError("malformed DMI structure header")
+        terminator = table.find(b"\x00\x00", offset + formatted_length)
+        if terminator < 0:
+            raise ValueError("unterminated DMI string table")
+        end = terminator + 2
+        if structure_type == 229:
+            count += 1
+            if b"$OCS" in table[offset:end]:
+                marker_count += 1
+        offset = end
+        if structure_type == 127:
+            break
+    return {"type_229_structures": count,
+            "type_229_with_ocs_marker": marker_count}
+
+
+def read_dmi_table(path=DMI_TABLE):
+    """Read the kernel-exported SMBIOS table only; never fall back to memory."""
+    try:
+        with open(path, "rb") as stream:
+            table = stream.read(MAX_DMI_TABLE_SIZE + 1)
+    except OSError:
+        return None
+    if len(table) > MAX_DMI_TABLE_SIZE:
+        return None
+    return table
 
 
 def pci_displays(output):
@@ -66,12 +88,15 @@ def run_capture(command):
     return process.stdout if process.returncode == 0 else None
 
 
-def inspect(dmidecode_text, lspci_text, product):
-    dmi = type229_summary(dmidecode_text) if dmidecode_text is not None else None
+def inspect(dmi_table, lspci_text, product):
+    try:
+        dmi = type229_summary(dmi_table) if dmi_table is not None else None
+    except (TypeError, ValueError):
+        dmi = None
     pci = pci_displays(lspci_text) if lspci_text is not None else None
     return {
         "tool": "ocsd-discovery",
-        "mode": "metadata-only; no physical memory read or writes",
+        "mode": "metadata-only; SMBIOS sysfs read; no physical memory access or writes",
         "model": product,
         "smbios": dmi if dmi is not None else "unavailable",
         "display_pci_addresses": pci if pci is not None else "unavailable",
@@ -88,8 +113,10 @@ def inspect(dmidecode_text, lspci_text, product):
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--json", action="store_true", help="print sanitized JSON")
+    parser.add_argument("--dmi-table", default=DMI_TABLE,
+                        help="raw kernel-exported DMI table (default: %(default)s)")
     args = parser.parse_args(argv)
-    report = inspect(run_capture(["dmidecode", "-t", "229"]),
+    report = inspect(read_dmi_table(args.dmi_table),
                      run_capture(["lspci", "-Dnn"]), read_product_name())
     if args.json:
         print(json.dumps(report, indent=2, sort_keys=True))
