@@ -7,7 +7,7 @@ import re
 import subprocess
 import sys
 
-DISPLAY_CLASS = re.compile(r"^([0-9a-fA-F]{4,8}:[0-9a-fA-F]{2}:[0-9a-fA-F]{2}\\.[0-7])\s+(.+)$")
+DISPLAY_CLASS = re.compile(r"^([0-9a-fA-F]{4,8}:[0-9a-fA-F]{2}:[0-9a-fA-F]{2}\.[0-7])\s+(.+)$")
 DISPLAY_WORDS = ("vga compatible controller", "3d controller", "display controller")
 DMI_HEADER = re.compile(r"^Handle 0x[0-9a-fA-F]+, DMI type (\d+),")
 
