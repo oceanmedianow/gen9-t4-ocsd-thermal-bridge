@@ -36,6 +36,10 @@ Review the output yourself before posting. DMI and PCI data still describe
 hardware. If the sysfs DMI table or `lspci` is unavailable, the relevant field
 is marked unavailable; no compatibility conclusion is drawn.
 
+For a privacy-sanitized, human-written example, see the
+[DL380 Gen10 / RTX 8000 discovery summary](../examples/dl380-gen10-rtx8000-discovery.md).
+It deliberately omits PCI addresses and is not verbatim tool output.
+
 **Important:** The type-229 output can vary between firmware implementations.
 A marker count of zero is not proof that OCSD is absent. A positive marker count
 is not proof that the Gen9 record layout exists. We have not established Gen8
